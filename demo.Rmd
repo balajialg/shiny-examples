@@ -1,0 +1,127 @@
+---
+title: "testR"
+output: html_document
+runtime: shiny
+date: "2024-09-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+```{r correlate, echo = FALSE}
+
+# UI
+ui <- fluidPage(
+  titlePanel("Mini Sampling Distribution Simulator"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput(
+        inputId = "dist",
+        label = "Data distribution",
+        choices = c("Bernoulli", "Normal")
+      ),
+      conditionalPanel(
+        condition = "input.dist == 'Bernoulli'",
+        numericInput(
+          inputId = "p",
+          label = "Probability of success (p)",
+          value = 0.5,
+          min = 0,
+          max = 1
+        )
+      ),
+      conditionalPanel(
+        condition = "input.dist == 'Normal'",
+        numericInput(
+          inputId = "mean",
+          label = "Mean (µ)",
+          value = 0
+        ),
+        numericInput(
+          inputId = "sd",
+          label = "Standard Deviation (σ)",
+          value = 1
+        )
+      ),
+      numericInput(
+        inputId = "n",
+        label = "Sample size",
+        value = 30,
+        min = 1
+      ),
+      actionButton("generate", "Generate Sample")
+    ),
+    mainPanel(
+      plotOutput("data_dist"),     # First plot: Data distribution
+      plotOutput("sampling_dist")  # Second plot: Sampling distribution
+    )
+  )
+)
+```
+
+```{r server, echo = FALSE}
+# Server
+server <- function(input, output) {
+  
+  var_list <- reactiveValues(
+    curr_sample = NULL,
+    mean_vec = rep(NA, 1000),
+    curr_sim = 1
+  )
+  
+  observeEvent(input$generate, {
+    # Generate sample based on distribution type
+    if (input$dist == "Bernoulli") {
+      var_list$curr_sample <- rbinom(n = input$n, size = 1, prob = input$p)
+    } else if (input$dist == "Normal") {
+      var_list$curr_sample <- rnorm(n = input$n, mean = input$mean, sd = input$sd)
+    }
+    
+    # Store the sample mean in a vector
+    var_list$mean_vec[var_list$curr_sim] <- mean(var_list$curr_sample)
+    var_list$curr_sim <- var_list$curr_sim + 1
+  })
+  
+  # Render the data distribution plot
+  output$data_dist <- renderPlot({
+    # Ensure there's a sample to plot
+    req(var_list$curr_sample)
+    
+    hist(var_list$curr_sample, main = "Sample Data Distribution", col = "lightblue", xlab = "Sample Values")
+    abline(v = mean(var_list$curr_sample), col = "red")
+  })
+  
+  # Render the sampling distribution of means plot
+  output$sampling_dist <- renderPlot({
+    # Plot the sampling distribution only if we have at least 1 simulation
+    req(var_list$curr_sim > 1)
+    
+    # Remove NAs from the vector of means
+    hist(var_list$mean_vec[1:(var_list$curr_sim - 1)], 
+         main = "Sampling Distribution of Means", 
+         col = "lightgreen", 
+         xlab = "Sample Means")
+    
+    # Add a vertical line showing the mean of sampling distribution
+    abline(v = mean(var_list$mean_vec[1:(var_list$curr_sim - 1)], na.rm = TRUE), col = "blue", lwd = 2)
+  })
+}
+
+```
+
+# Run the app
+
+```{r runApp, echo = FALSE}
+shinyApp(ui, server)
+```
